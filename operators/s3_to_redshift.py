@@ -405,15 +405,15 @@ class S3ToRedshiftOperator(BaseOperator):
                 fk = ', '
                 for i, e in enumerate(self.foreign_key):
                     fk += 'foreign key("{0}") references {1}("{2}")'.format(e['column_name'],
-                                                                        e['reftable'],
-                                                                        e['ref_column'])
+                                                                            e['reftable'],
+                                                                            e['ref_column'])
                     if i != (len(self.foreign_key) - 1):
                         fk += ', '
             elif isinstance(self.foreign_key, dict):
                 fk += ', '
                 fk += 'foreign key("{0}") references {1}("{2}")'.format(self.foreign_key['column_name'],
-                                                                   self.foreign_key['reftable'],
-                                                                   self.foreign_key['ref_column'])
+                                                                        self.foreign_key['reftable'],
+                                                                        self.foreign_key['ref_column'])
         if self.distkey:
             dk = 'distkey({})'.format(self.distkey)
 
