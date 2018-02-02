@@ -25,6 +25,9 @@ class S3ToRedshiftOperator(BaseOperator):
     :type s3_bucket:                string
     :param s3_key:                  The source s3 key.
     :type s3_key:                   string
+    :param copy_params:             The parameters to be included when issuing
+                                    the copy statement in Redshift.
+    :type copy_params:              string
     :param origin_schema:           The s3 key for the incoming data schema.
                                     Expects a JSON file with a single dict
                                     specifying column and datatype as a
@@ -59,7 +62,9 @@ class S3ToRedshiftOperator(BaseOperator):
     :type incremental_key:          string
     """
 
-    template_fields = ['s3_key', 'origin_schema']
+    template_fields = ('s3_key',
+                       'origin_schema',
+                       'com')
 
     @apply_defaults
     def __init__(self,
@@ -69,6 +74,7 @@ class S3ToRedshiftOperator(BaseOperator):
                  redshift_conn_id,
                  redshift_schema,
                  table,
+                 copy_params=[],
                  origin_schema=None,
                  schema_location='s3',
                  origin_datatype=None,
@@ -85,6 +91,7 @@ class S3ToRedshiftOperator(BaseOperator):
         self.redshift_conn_id = redshift_conn_id
         self.redshift_schema = redshift_schema
         self.table = table
+        self.copy_params = copy_params
         self.origin_schema = origin_schema
         self.schema_location = schema_location
         self.origin_datatype = origin_datatype
@@ -104,7 +111,7 @@ class S3ToRedshiftOperator(BaseOperator):
         # no conflicts if multiple processes running concurrently.
         letters = string.ascii_lowercase
         random_string = ''.join(random.choice(letters) for _ in range(7))
-        self.temp_suffix = '_astro_temp_{0}'.format(random_string)
+        self.temp_suffix = '_tmp_{0}'.format(random_string)
         if self.origin_schema:
             schema = self.read_and_format()
         pg_hook = PostgresHook(self.redshift_conn_id)
@@ -284,20 +291,25 @@ class S3ToRedshiftOperator(BaseOperator):
             TRUNCATE TABLE "{0}"."{1}"
             '''.format(self.redshift_schema, self.table)
 
+        params = '\n'.join(self.copy_params)
+
+        # Example params for loading json from US-East-1 S3 region
+        # params = ["COMPUPDATE OFF",
+        #           "STATUPDATE OFF",
+        #           "JSON 'auto'",
+        #           "TIMEFORMAT 'auto'",
+        #           "TRUNCATECOLUMNS",
+        #           "region as 'us-east-1'"]
+
         base_sql = \
             """
             FROM 's3://{0}/{1}'
             CREDENTIALS '{2}'
-            COMPUPDATE OFF
-            STATUPDATE OFF
-            JSON 'auto'
-            TIMEFORMAT '{3}'
-            TRUNCATECOLUMNS
-            region as 'us-east-1';
+            {3};
             """.format(self.s3_bucket,
                        self.s3_key,
                        getS3Conn(),
-                       self.timeformat)
+                       params)
 
         load_sql = '''COPY "{0}"."{1}" {2}'''.format(self.redshift_schema,
                                                      self.table,

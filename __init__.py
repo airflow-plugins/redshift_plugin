@@ -1,5 +1,6 @@
 from airflow.plugins_manager import AirflowPlugin
-from redshift_plugin.operators.s3_to_redshift import S3ToRedshiftOperator
+from s3_to_redshift_operator.operators.s3_to_redshift import S3ToRedshiftOperator
+from s3_to_redshift_operator.macros.redshift_auth import redshift_auth
 
 
 class S3ToRedshiftPlugin(AirflowPlugin):
@@ -8,7 +9,7 @@ class S3ToRedshiftPlugin(AirflowPlugin):
     # Leave in for explicitness
     hooks = []
     executors = []
-    macros = []
+    macros = [redshift_auth]
     admin_views = []
     flask_blueprints = []
     menu_links = []
