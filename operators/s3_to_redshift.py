@@ -60,6 +60,29 @@ class S3ToRedshiftOperator(BaseOperator):
                                     with. Only required if using a load_type of
                                     "upsert".
     :type incremental_key:          string
+    :param foreign_key:             *(optional)* This specifies any foreign_keys
+                                    in the table and which corresponding table
+                                    and key they reference. This may be either
+                                    a dictionary or list of dictionaries (for
+                                    multiple foreign keys). The fields that are
+                                    required in each dictionary are:
+                                        - column_name
+                                        - reftable
+                                        - ref_column
+    :type foreign_key:              dictionary
+    :param distkey:                 *(optional)* The distribution key for the
+                                    table. Only one key may be specified.
+    :type distkey:                  string
+    :param sortkey:                 *(optional)* The sort keys for the table.
+                                    If more than one key is specified, set this
+                                    as a list.
+    :type sortkey:                  string
+    :param sort_type:               *(optional)* The style of distribution
+                                    to sort the table. Possible values include:
+                                        - compound
+                                        - interleaved
+                                    Defaults to "compound".
+    :type sort_type:                string
     """
 
     template_fields = ('s3_key',
@@ -82,7 +105,7 @@ class S3ToRedshiftOperator(BaseOperator):
                  incremental_key=None,
                  foreign_key={},
                  distkey=None,
-                 sortkey=None,
+                 sortkey='',
                  sort_type='COMPOUND',
                  *args,
                  **kwargs):
@@ -111,14 +134,17 @@ class S3ToRedshiftOperator(BaseOperator):
         if self.schema_location.lower() not in ['s3', 'local']:
             raise Exception('Valid Schema Locations are "s3" or "local".')
 
-        if not (isinstance(self.sortkey, str) or isinstance(self.foreign_key, list)):
+        if not (isinstance(self.sortkey, str) or isinstance(self.sortkey, list)):
             raise Exception('Sort Keys must be specified as either a string or list.')
 
         if not (isinstance(self.foreign_key, dict) or isinstance(self.foreign_key, list)):
             raise Exception('Foreign Keys must be specified as either a dictionary or a list of dictionaries.')
 
+        if ((',' in self.distkey) or not isinstance(self.distkey, str)):
+            raise Exception('Only one distribution key may be specified.')
+
         if self.sort_type.lower() not in ('compound', 'interleaved'):
-            raise Exception('Please choose "compound or interleaved" for sort type.')
+            raise Exception('Please choose "compound" or "interleaved" for sort type.')
 
     def execute(self, context):
         # Append a random string to the end of the staging table to ensure
@@ -352,7 +378,7 @@ class S3ToRedshiftOperator(BaseOperator):
             k = "{quote}{key}{quote}".format(quote='"', key=item['name'])
             field = ' '.join([k, item['type']])
             if isinstance(self.sortkey, str) and self.sortkey == item['name']:
-                field += ' {}'.format(self.foreign_key)
+                field += ' sortkey'
             output += field
             output += ', '
         # Remove last comma and space after schema items loop ends
@@ -372,21 +398,20 @@ class S3ToRedshiftOperator(BaseOperator):
         sk = ''
 
         if self.primary_key:
-            pk = 'primary key({})'.format(self.primary_key)
+            pk = ', primary key("{0}")'.format(self.primary_key)
 
         if self.foreign_key:
             if isinstance(self.foreign_key, list):
-                fk = ''
+                fk = ', '
                 for i, e in enumerate(self.foreign_key):
-                    fk += '\n'
-                    if i != (len(self.foreign_key) - 1):
-                        fk += ','
-                    fk += 'foreign_key({0}) references {1}({2})'.format(e['column_name'],
+                    fk += 'foreign key("{0}") references {1}("{2}")'.format(e['column_name'],
                                                                         e['reftable'],
                                                                         e['ref_column'])
-
+                    if i != (len(self.foreign_key) - 1):
+                        fk += ', '""
             elif isinstance(self.foreign_key, dict):
-                fk = 'foreign_key({0}) references {1}({2})'.format(self.foreign_key['column_name'],
+                fk += ', '
+                fk += 'foreign key("{0}") references {1}("{2}")'.format(self.foreign_key['column_name'],
                                                                    self.foreign_key['reftable'],
                                                                    self.foreign_key['ref_column'])
         if self.distkey:
@@ -394,19 +419,19 @@ class S3ToRedshiftOperator(BaseOperator):
 
         if self.sortkey:
             if isinstance(self.sortkey, list):
-                sk = '{0} sortkey({1})'.format(self.sort_type, ''.join([e for e in self.sortkey]))
+                sk += '{0} sortkey({1})'.format(self.sort_type, ', '.join(["{}".format(e) for e in self.sortkey]))
 
         create_table_query = \
             '''
-            CREATE TABLE IF NOT EXISTS "{0}"."{1}"
-            ({2} {3} {4}) {5} {6}
-            '''.format(self.redshift_schema,
-                       copy_table,
-                       output,
-                       pk,
-                       fk,
-                       dk,
-                       sk)
+            CREATE TABLE IF NOT EXISTS "{schema}"."{table}"
+            ({fields}{primary_key}{foreign_key}) {distkey} {sortkey}
+            '''.format(schema=self.redshift_schema,
+                       table=copy_table,
+                       fields=output,
+                       primary_key=pk,
+                       foreign_key=fk,
+                       distkey=dk,
+                       sortkey=sk)
 
         pg_hook.run(create_schema_query)
         pg_hook.run(create_table_query)
