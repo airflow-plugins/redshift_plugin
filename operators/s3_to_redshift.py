@@ -408,7 +408,7 @@ class S3ToRedshiftOperator(BaseOperator):
                                                                         e['reftable'],
                                                                         e['ref_column'])
                     if i != (len(self.foreign_key) - 1):
-                        fk += ', '""
+                        fk += ', '
             elif isinstance(self.foreign_key, dict):
                 fk += ', '
                 fk += 'foreign key("{0}") references {1}("{2}")'.format(self.foreign_key['column_name'],
