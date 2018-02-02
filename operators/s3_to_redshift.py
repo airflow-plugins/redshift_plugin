@@ -63,8 +63,7 @@ class S3ToRedshiftOperator(BaseOperator):
     """
 
     template_fields = ('s3_key',
-                       'origin_schema',
-                       'com')
+                       'origin_schema')
 
     @apply_defaults
     def __init__(self,
@@ -81,7 +80,10 @@ class S3ToRedshiftOperator(BaseOperator):
                  load_type='append',
                  primary_key=None,
                  incremental_key=None,
-                 timeformat='auto',
+                 foreign_key={},
+                 distkey=None,
+                 sortkey=None,
+                 sort_type='COMPOUND',
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
@@ -98,13 +100,25 @@ class S3ToRedshiftOperator(BaseOperator):
         self.load_type = load_type
         self.primary_key = primary_key
         self.incremental_key = incremental_key
-        self.timeformat = timeformat
+        self.foreign_key = foreign_key
+        self.distkey = distkey
+        self.sortkey = sortkey
+        self.sort_type = sort_type
 
         if self.load_type.lower() not in ["append", "rebuild", "upsert"]:
             raise Exception('Please choose "append", "rebuild", or "upsert".')
 
         if self.schema_location.lower() not in ['s3', 'local']:
             raise Exception('Valid Schema Locations are "s3" or "local".')
+
+        if not (isinstance(self.sortkey, str) or isinstance(self.foreign_key, list)):
+            raise Exception('Sort Keys must be specified as either a string or list.')
+
+        if not (isinstance(self.foreign_key, dict) or isinstance(self.foreign_key, list)):
+            raise Exception('Foreign Keys must be specified as either a dictionary or a list of dictionaries.')
+
+        if self.sort_type.lower() not in ('compound', 'interleaved'):
+            raise Exception('Please choose "compound or interleaved" for sort type.')
 
     def execute(self, context):
         # Append a random string to the end of the staging table to ensure
@@ -337,6 +351,8 @@ class S3ToRedshiftOperator(BaseOperator):
         for item in schema:
             k = "{quote}{key}{quote}".format(quote='"', key=item['name'])
             field = ' '.join([k, item['type']])
+            if isinstance(self.sortkey, str) and self.sortkey == item['name']:
+                field += ' {}'.format(self.foreign_key)
             output += field
             output += ', '
         # Remove last comma and space after schema items loop ends
@@ -346,12 +362,51 @@ class S3ToRedshiftOperator(BaseOperator):
         else:
             copy_table = self.table
         create_schema_query = \
-            '''CREATE SCHEMA IF NOT EXISTS "{0}";'''.format(
-                                                          self.redshift_schema)
+            '''
+            CREATE SCHEMA IF NOT EXISTS "{0}";
+            '''.format(self.redshift_schema)
+
+        pk = ''
+        fk = ''
+        dk = ''
+        sk = ''
+
+        if self.primary_key:
+            pk = 'primary key({})'.format(self.primary_key)
+
+        if self.foreign_key:
+            if isinstance(self.foreign_key, list):
+                fk = ''
+                for i, e in enumerate(self.foreign_key):
+                    fk += '\n'
+                    if i != (len(self.foreign_key) - 1):
+                        fk += ','
+                    fk += 'foreign_key({0}) references {1}({2})'.format(e['column_name'],
+                                                                        e['reftable'],
+                                                                        e['ref_column'])
+
+            elif isinstance(self.foreign_key, dict):
+                fk = 'foreign_key({0}) references {1}({2})'.format(self.foreign_key['column_name'],
+                                                                   self.foreign_key['reftable'],
+                                                                   self.foreign_key['ref_column'])
+        if self.distkey:
+            dk = 'distkey({})'.format(self.distkey)
+
+        if self.sortkey:
+            if isinstance(self.sortkey, list):
+                sk = '{0} sortkey({1})'.format(self.sort_type, ''.join([e for e in self.sortkey]))
+
         create_table_query = \
-            '''CREATE TABLE IF NOT EXISTS "{0}"."{1}" ({2})'''.format(
-                                                          self.redshift_schema,
-                                                          copy_table,
-                                                          output)
+            '''
+            CREATE TABLE IF NOT EXISTS "{0}"."{1}"
+            ({2} {3} {4}) {5} {6}
+            '''.format(self.redshift_schema,
+                       copy_table,
+                       output,
+                       pk,
+                       fk,
+                       dk,
+                       sk)
+
         pg_hook.run(create_schema_query)
         pg_hook.run(create_table_query)
