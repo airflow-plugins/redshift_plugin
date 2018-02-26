@@ -140,7 +140,7 @@ class S3ToRedshiftOperator(BaseOperator):
         if not (isinstance(self.foreign_key, dict) or isinstance(self.foreign_key, list)):
             raise Exception('Foreign Keys must be specified as either a dictionary or a list of dictionaries.')
 
-        if ((',' in self.distkey) or not isinstance(self.distkey, str)):
+        if self.distkey and ((',' in self.distkey) or not isinstance(self.distkey, str)):
             raise Exception('Only one distribution key may be specified.')
 
         if self.sort_type.lower() not in ('compound', 'interleaved'):
