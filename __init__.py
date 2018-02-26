@@ -1,6 +1,6 @@
 from airflow.plugins_manager import AirflowPlugin
-from s3_to_redshift_operator.operators.s3_to_redshift import S3ToRedshiftOperator
-from s3_to_redshift_operator.macros.redshift_auth import redshift_auth
+from redshift_plugin.operators.s3_to_redshift import S3ToRedshiftOperator
+from redshift_plugin.macros.redshift_auth import redshift_auth
 
 
 class S3ToRedshiftPlugin(AirflowPlugin):
