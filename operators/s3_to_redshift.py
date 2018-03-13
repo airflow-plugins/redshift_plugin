@@ -433,5 +433,4 @@ class S3ToRedshiftOperator(BaseOperator):
                        distkey=dk,
                        sortkey=sk)
 
-        pg_hook.run(create_schema_query)
-        pg_hook.run(create_table_query)
+        pg_hook.run([create_schema_query, create_table_query])
