@@ -114,8 +114,8 @@ class S3ToRedshiftOperator(BaseOperator):
         self.s3_bucket = s3_bucket
         self.s3_key = s3_key
         self.redshift_conn_id = redshift_conn_id
-        self.redshift_schema = redshift_schema
-        self.table = table
+        self.redshift_schema = redshift_schema.lower()
+        self.table = table.lower()
         self.copy_params = copy_params
         self.origin_schema = origin_schema
         self.schema_location = schema_location
