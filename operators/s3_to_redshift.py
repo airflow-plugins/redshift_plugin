@@ -13,8 +13,8 @@ from airflow.models import Connection
 class S3ToRedshiftOperator(BaseOperator):
     """
     S3 To Redshift Operator
-    :param mysql_conn_id:           The destination redshift connection id.
-    :type mysql_conn_id:            string
+    :param redshift_conn_id:        The destination redshift connection id.
+    :type redshift_conn_id:         string
     :param redshift_schema:         The destination redshift schema.
     :type redshift_schema:          string
     :param table:                   The destination redshift table.
