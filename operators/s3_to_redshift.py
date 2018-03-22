@@ -244,7 +244,7 @@ class S3ToRedshiftOperator(BaseOperator):
                         alter_query = \
                          """
                          ALTER TABLE "{0}"."{1}"
-                         ADD COLUMN {2} {3}
+                         ADD COLUMN "{2}" {3}
                          """.format(self.redshift_schema,
                                     self.table,
                                     e['name'],
