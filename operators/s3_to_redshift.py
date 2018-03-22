@@ -27,7 +27,7 @@ class S3ToRedshiftOperator(BaseOperator):
     :type s3_key:                   string
     :param copy_params:             The parameters to be included when issuing
                                     the copy statement in Redshift.
-    :type copy_params:              string
+    :type copy_params:              list
     :param origin_schema:           The s3 key for the incoming data schema.
                                     Expects a JSON file with a single dict
                                     specifying column and datatype as a
