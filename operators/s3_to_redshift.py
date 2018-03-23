@@ -264,11 +264,21 @@ class S3ToRedshiftOperator(BaseOperator):
             return conn
 
         def getS3Conn():
+            creds = ""
             s3_conn = get_conn(self.s3_conn_id)
-            aws_key = s3_conn.extra_dejson.get('aws_access_key_id')
-            aws_secret = s3_conn.extra_dejson.get('aws_secret_access_key')
-            return ("aws_access_key_id={0};aws_secret_access_key={1}"
+            aws_key = s3_conn.extra_dejson.get('aws_access_key_id', None)
+            aws_secret = s3_conn.extra_dejson.get('aws_secret_access_key', None)
+            # support for cross account resource access
+            aws_role_arn = s3_conn.extra_dejson.get('role_arn', None)
+
+            if aws_key and aws_secret:
+                creds = ("aws_access_key_id={0};aws_secret_access_key={1}"
                     .format(aws_key, aws_secret))
+            elif aws_role_arn:
+                creds = ("aws_iam_role={0}"
+                    .format(aws_role_arn))
+            
+            return creds
 
         # Delete records from the destination table where the incremental_key
         # is greater than or equal to the incremental_key of the source table
