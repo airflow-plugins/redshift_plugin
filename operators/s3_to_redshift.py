@@ -42,11 +42,6 @@ class S3ToRedshiftOperator(BaseOperator):
                                     is defined in the operator itself. By
                                     default the location is set to 's3'.
     :type schema_location:          string
-    :param origin_datatype:         The incoming database type from which to
-                                    convert the origin schema. Required when
-                                    specifiying the origin_schema. Current
-                                    possible values include "mysql".
-    :type origin_datatype:          string
     :param load_type:               The method of loading into Redshift that
                                     should occur. Options:
                                         - "append"
@@ -104,7 +99,6 @@ class S3ToRedshiftOperator(BaseOperator):
                  copy_params=[],
                  origin_schema=None,
                  schema_location='s3',
-                 origin_datatype=None,
                  load_type='append',
                  primary_key=None,
                  incremental_key=None,
@@ -124,7 +118,6 @@ class S3ToRedshiftOperator(BaseOperator):
         self.copy_params = copy_params
         self.origin_schema = origin_schema
         self.schema_location = schema_location
-        self.origin_datatype = origin_datatype
         self.load_type = load_type
         self.primary_key = primary_key
         self.incremental_key = incremental_key
@@ -177,57 +170,6 @@ class S3ToRedshiftOperator(BaseOperator):
                 schema = json.loads(schema.replace("'", '"'))
         else:
             schema = self.origin_schema
-
-        schema_map = {
-            "tinyint(1)": "bool",
-            "float": "float4",
-            "double": "float8",
-            "int(11)": "int4",
-            "longtext": "text",
-            "bigint(21)": "int8"
-            }
-
-        schemaMapper = [{"avro": "string",
-                         "mysql": "varchar(256)",
-                         "redshift": "text"},
-                        {"avro": "int",
-                         "mysql": "int(11)",
-                         "redshift": "int4"},
-                        {"avro": "long",
-                         "mysql": "bigint(21)",
-                         "redshift": "int8"},
-                        {"avro": "long-timestamp-millis",
-                         "redshift": "timestamp"},
-                        {"avro": "boolean",
-                         "mysql": "tinyint(1)",
-                         "redshift": "boolean"},
-                        {"avro": "date",
-                         "mysql": "date",
-                         "redshift": "date"},
-                        {"avro": "long-timestamp-millis",
-                         "mysql": "timestamp(3)",
-                         "redshift": "timestamp"},
-                        {"mysql": "float",
-                         "redshift": "float4"},
-                        {"mysql": "double",
-                         "redshift": "float8"},
-                        {"mysql": "longtext",
-                         "redshift": "text"}]
-
-        if self.origin_datatype:
-            if self.origin_datatype.lower() == 'mysql':
-                for i in schema:
-                    if schema[i] in schema_map:
-                        schema[i] = schema_map[schema[i]]
-            elif self.origin_datatype.lower() == 'avro':
-                for i in schema:
-                    if 'logicalType' in list(i.keys()):
-                        i['type'] = '-'.join([i['type'], i['logicalType']])
-                        del i['logicalType']
-                    for e in schemaMapper:
-                        if 'avro' in list(e.keys()):
-                            if i['type'] == e['avro']:
-                                i['type'] = e['redshift']
 
         return schema
 
