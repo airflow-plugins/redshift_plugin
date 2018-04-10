@@ -34,7 +34,7 @@ class S3ToRedshiftOperator(BaseOperator):
                                     Expects a JSON file with an array of
                                     dictionaries specifying name and type.
                                     (e.g. {"name": "_id", "type": "int4"})
-    :type origin_schema:            string
+    :type origin_schema:            array of dictionaries
     :param schema_location:         The location of the origin schema. This
                                     can be set to 'S3' or 'Local'.
                                     If 'S3', it will expect a valid S3 Key. If
